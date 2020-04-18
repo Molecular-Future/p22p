@@ -1,0 +1,424 @@
+syntax = "proto3";
+
+package org.mos.p22p.model;
+import "google/protobuf/any.proto";
+
+enum PModule {
+	PZP = 0;
+};
+enum PCommand {
+	JIN = 0; //申请加入节点集群
+	SWX = 1; //获取节点的拓扑
+	SET = 2; //更新节点信息
+	INF = 3;//获取当前节点信息
+	VOT = 4;//PBFT投票
+	
+	VTI = 5;//stateview的信息
+
+	RRR = 6;//消息路由
+	
+	
+	CHN = 7;//change node name
+	
+	
+	MRS = 8;//消息转发，Message Relay Service
+	
+	HBT = 10;//HeartBeat!检查心跳
+	DRP = 11;//drop 某个节点
+	BLK = 12;//black list
+	RJI = 13;//对应于JIN，返回加入信息
+	
+	TTT = 30;//ping,pong,wall ,tesing
+	TTS = 31;//vote string test
+	RHR = 32;//health check
+};
+
+message PMNodeInfo{
+	string node_name = 1;//节点
+	string uri = 2;//节点链接支持的协议类型，tcp，http/https，udp，mq……
+	string loc_id = 3;//地址
+	string loc_gwuris = 4;//端口
+	int64 startup_time = 5;//启动时间
+	string pub_key = 6;//该节点的公钥
+	string bcuid = 7;//节点的唯一ID
+	int32 try_node_idx = 8;//节点的随机id
+	string pri_key = 9;//私钥，记得不要再在全网广播
+	int32 node_idx = 10;//全网确定之后的节点id
+	int64 recv_cc = 11;//总收到多少数据
+	int64 send_cc = 12;//总发送多少数据
+	int64 block_cc = 13;//总产生了多少个区块
+	string co_address = 14;
+	string bit_encs = 15;//当前DNodes共识
+	
+	string sign = 100;//对上述数据的签名结果
+}
+
+message PSJoin{//加入
+	PMNodeInfo  my_info = 1;
+	enum Operation{
+		MANU_DISCOVER = 0;//手动添加
+		NODE_CONNECT = 1;//节点请求连接
+		NODEID_REQUEST = 2;//请求节点id
+	}
+	Operation op = 2;//操作类型
+	int32	node_count = 3;//network counter
+	int32	node_notified_count = 4;//already notified nodes
+	string  network_instance = 5;// to check instance
+	string 	messageid = 6;
+	bool 	iswallmessage = 7;
+	
+	string nid = 50;//网络ID	
+}
+
+message PRetJoin{//加入的返回信息
+	int32 ret_code = 1;//返回
+	string ret_message = 2;//返回信息
+
+	PMNodeInfo my_info = 3;//交换一下我自己的节点信息
+	repeated PMNodeInfo nodes = 4;//交换一下我知道的节点信息
+	int32	ret_try_idx =5; 
+	int32	try_count = 6;
+	string	strbits = 7;
+	string 	messageid = 8;
+	
+	string nid = 50;//网络ID	
+	
+	string sign = 100;//对上述数据的签名结果
+}
+
+
+message PSNodeInfo{//加入
+	string req_token = 1;//是否获取拓扑信息
+	PMNodeInfo node = 2;
+	
+	string dst_bcuid = 3;//用于检查节点信息
+	string dst_sign = 4;
+	string dst_uri = 5;
+	
+	string nid = 50;//网络ID	
+}
+
+
+
+
+message PRetNodeInfo{//加入的返回信息
+	int32 ret_code = 1;//返回
+	string ret_message = 2;//返回信息
+
+	PMNodeInfo current = 4;//本节点信息
+	
+	string bit_encs = 5;// for pending
+	repeated PMNodeInfo pnodes = 6;//交换一下我知道的节点信息
+	
+	repeated PMNodeInfo dnodes = 7;//交换一下我知道的节点信息
+	
+	message PLocInfo{
+		string loc_id = 1;
+		string loc_gwuris = 2;
+		repeated string loc_nodebcuids = 3; 
+	}
+	
+	repeated PLocInfo locinfs = 8;//集群信息
+	
+	string sign = 100;//对上述数据的签名结果
+}
+
+message PBSwitchNodes{	//交换我所知道的节点信息
+	repeated PMNodeInfo  nodes = 1;//所有节点的信息
+	PMNodeInfo my_info = 2;
+	string nid = 50;//网络ID	
+	string sign = 100;//对上述数据的签名结果
+}
+
+enum PBFTStage{
+	INIT = 0;
+	PRE_PREPARE = 1;
+	PREPARE = 2;
+	COMMIT = 3;
+	REPLY = 4;
+	NOOP = 5;// do nothing.. still wait for other actions
+	DUPLICATE = 6;//重复消息
+	
+	PENDING_SEND = 10;
+	
+	REJECT = 99;
+}
+
+enum PVType{
+	NETWORK_IDX = 0;//投票pending 的节点
+	VIEW_CHANGE = 1; // can make snapshot
+	STR_PBFT_VOTE = 2;//其他想利用pbft投票的信息
+}
+
+
+message PVBase{
+	PBFTStage state = 1 ;//状态
+	PVType m_type = 2;//消息类型
+	uint32 v = 3;//该消息类型对应的view_id序列
+	uint32 max_vid = 4;//最大的id
+	uint32 n = 5;// 参与投票的节点数
+	uint64 create_time = 6;
+	uint64 last_update_time = 7;
+	PBFTStage old_state = 8 ;//上次状态
+	PBFTStage reject_state = 9 ;//上次状态
+	bytes contents = 10; //具体的内容
+	uint32 store_num = 11;// 为了支持快照定义的版本
+	uint32 view_counter = 12;//计数器,为快照准备
+	string origin_bcuid = 20;//从哪个节点名称来的
+	string message_uid = 30;//消息的uuid
+
+	string from_bcuid = 31;//从哪个节点名称来的
+	string ext_type = 32;//
+	string nid = 50;//网络ID
+	
+	string sign = 100; //对上述数据的签名结果
+}
+
+message PBVoteNodeIdx{//投票决定节点的idx,80%通过才行
+	repeated PMNodeInfo pending_nodes = 1;//所有节点的信息
+	
+	string node_bits_enc = 2;//所有节点的编码信息
+	string pending_bits_enc = 3;//
+	repeated PMNodeInfo d_nodes = 4;//所有直连信息
+	string nid = 50;//网络ID
+}
+
+message PBVoteString{
+	enum PVStatus{
+		PVS_NOT_READY = 0;
+		PVS_VOTED = 1;
+	}
+	string vote_content = 1;
+	PVStatus status = 2;
+	string gcmd = 3;
+	enum PVOperation{
+		VO_VOTESTART = 0;
+		VO_MAKEDECISION = 1;
+		VO_FINALMERGE = 2;
+	}
+	PVOperation op = 4;
+	string vote_result = 5;
+	string messageid = 10;
+	string ext_type = 11; 
+	string nid = 50;//网络ID
+}
+
+message PBVoteViewChange{//投票决定节点的idx,80%通过才行
+	uint32 v = 1;//当前的v
+	uint32 view_counter = 2;//counter必须匹配才行
+	uint32 store_num = 3;// 为了支持快照定义的版本
+	string nid = 50;//网络ID
+}
+
+message PSVoteState{
+	PVType t = 1;//消息类型
+	int32 v = 2;//状态计数器
+	string nid = 50;//网络ID	 
+}
+
+message NodeStateInfo{
+	string k = 1;//
+	PVBase	v = 2;//当前信息
+}
+
+message PRetVoteState{
+	int32 ret_code = 1;//返回
+	string ret_message = 2;//返回信息
+
+	PVType 	m_type = 3;//消息类型
+	NodeStateInfo	cur = 4;//当前信息
+	repeated NodeStateInfo	nodes = 5;//所有节点的信息
+	
+	string nid = 50;//网络ID	 
+}
+
+
+enum TestMessageType{
+	WALL  = 0;
+	PING  = 1;
+	PONG  = 2;
+	
+}
+
+message PSTestMessage{
+	string content = 1;//消息字段
+	TestMessageType type = 2;//
+	int64 wall_time = 3;
+	int64 recv_time = 4;
+	string messageid = 5;
+	string org_bcuid = 6;
+	string from_bcuid = 7;
+	bool dwall = 8;
+	bool block = 10;
+	int64 ps = 9 ;
+	string nid = 50;//网络ID
+}
+
+message PRetTestMessage{
+	int32 ret_code = 1;//返回
+	string ret_message = 2;//返回信息
+
+	int32 dnode_count = 3;
+	int32 pending_count = 4;
+	
+	string bitencs = 5;
+	string nid = 50;//网络ID
+}
+ 
+ 
+
+message PSChangeNodeName{
+	string newname = 1;//消息字段
+	string nid = 50;//网络ID
+}
+
+message PRetChangeNodeName{
+	int32 ret_code = 1;//返回
+	string ret_message = 2;//返回信息
+	string newname = 3;
+	string nid = 50;//网络ID
+}
+ 
+
+message PSRouteMessage {
+	
+	enum PBNodeType{
+		PB_EMPTY = 0;
+		PB_FULLNODE = 1;
+		PB_FLAT_SET = 2;
+		PB_NODE_SET = 3;
+		PB_DEEP_TREE_SET = 4;
+	}
+	message PBFlatSet{
+		int32 fromIdx = 1;
+		string nextHops_enc = 2; 
+	}
+
+	message PBNode{
+		PBNodeType pbnt = 1;
+		bytes data = 2;
+	}
+	message PBNodeSet{
+		repeated PBNode nodes = 1;
+	}
+
+	message PBDeepTreeSet{
+		int32 fromIdx = 1 ;
+		PBNodeSet treeHops = 2 ;
+	}
+	
+	enum PBRouteMsgType{
+		PM_VBASE = 0;
+		PM_TEST = 1;
+	}
+	
+	string gcmd = 1;
+	bytes body = 2;
+	int32 fromIdx = 3;
+	PBNode nextHops = 4;
+	string network = 5;
+	string messageid = 6;
+	PBRouteMsgType msgtype = 7;
+	string encbits = 8;
+	string nid = 50;//网络ID
+}
+
+message PRetRouteMessage {
+	int32 ret_code = 1;//返回
+	string ret_message = 2;//返回信息
+	int32 dnode_count = 3;
+	int32 pending_count = 4;
+	string bitencs = 5;
+}
+
+
+message PSDrop{//加入
+	repeated string  drop_bcuids = 1;
+	string  reason = 2;//why drop
+	string  sign = 3;//to check sign 
+	string nid = 50;//网络ID	
+}
+
+message PRetDrop{//加入的返回信息
+	int32 ret_code = 1;//返回
+	string ret_message = 2;//返回信息
+
+	PMNodeInfo my_info = 3;//交换一下我自己的节点信息
+	
+	repeated PMNodeInfo drop_nodes = 4;//交换一下我知道的节点信息
+	
+	string nid = 50;//网络ID	
+
+	string sign = 100;//对上述数据的签名结果
+}
+
+
+message PSBlackList{//加入
+	repeated string  bcuids = 1;
+	string  reason = 2;//why drop
+	bool	block = 3;//是否block掉
+	string  sign = 4;//to check sign 
+	string nid = 50;//网络ID	
+}
+
+message PRetBlackList{//加入的返回信息
+	int32 ret_code = 1;//返回
+	string ret_message = 2;//返回信息
+
+	repeated string  block_bcuids = 4;
+	
+	string nid = 50;//网络ID	
+
+	string sign = 100;//对上述数据的签名结果
+}
+
+message PMJoinedNode{
+	repeated PMNodeInfo joined_nodes = 1;//保存之前的节点信息
+	repeated string  block_bcuids = 2;//block掉的节点信息
+}
+
+
+
+message PSRhrCheck{//心跳检查
+	string nid = 1;//网络ID	
+}
+
+message PRetRhrCheck{//加入的返回信息
+	int32 ret_code = 1;//返回
+	string ret_message = 2;//返回信息
+	int32	pnodes = 3;
+	int32	dnodes = 4;
+	int32	namenodes = 5;
+	int32   samenodes = 6;
+	int32	joinednodes = 7;
+	int32	dbloadnodes = 8;
+	int32	nodeidx= 9;
+	int32	trynodeidx= 10;
+	int32 	duplicatednodes = 11;
+	int32	blacknodes = 12;
+	int32	startupnodes = 13;
+	int64	pbft_v = 20;
+	int64	pbft_t = 21;
+	string	networks = 22;
+	string nid = 30;//网络ID
+}
+
+
+message MRSPacket{ //消息转发包
+	string loc_id = 1;//位置id
+	repeated string bc_uids = 2;//目标id
+	repeated string uris = 3;//目标的uri是多少
+
+
+	bytes fixhead = 4;
+	bytes exthead = 5;
+	bytes body = 6;//原包文
+	string origin_bcuid = 7;
+	string origin_messageid = 8;
+	
+	string nid = 30;//网络ID
+	
+}
+
+
+
